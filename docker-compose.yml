@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  simli-app:
+    image: simli-app
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_SIMLI_API_KEY=${NEXT_PUBLIC_SIMLI_API_KEY}
+      - NEXT_PUBLIC_OPENAI_API_KEY=${NEXT_PUBLIC_OPENAI_API_KEY}
+    restart: unless-stopped

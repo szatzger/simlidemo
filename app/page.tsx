@@ -20,9 +20,10 @@ const avatar: avatarSettings = {
   name: "Frank",
   openai_voice: "echo",
   openai_model: "gpt-4o-mini-realtime-preview-2024-12-17", // Use "gpt-4o-mini-realtime-preview-2024-12-17" for cheaper and faster responses
-  simli_faceid: "6ebf0aa7-6fed-443d-a4c6-fd1e3080b215",
+ // simli_faceid: "6ebf0aa7-6fed-443d-a4c6-fd1e3080b215",
+ simli_faceid: "3af51cbb-21ee-44c5-8949-8d3a1c3ce5a0",
   initialPrompt:
-    "You are a helpful AI assistant named Frank. You are friendly and concise in your responses. Your task is to help users with any questions they might have. Your answers are short and to the point, don't give long answers be brief and straightforward.",
+    "Te egy segítőkész AI asszisztens vagy, Franknek hívnak. Barátságos és tömör válaszokat adsz. Feladatod, hogy segíts a felhasználóknak bármilyen kérdésben. Válaszaid rövidek és lényegretörőek legyenek. Mindig magyarul beszélj. A beszélgetést a következő mondattal kezdd: 'Szia! Miben segíthetek ma?'",
 };
 
 const Demo: React.FC = () => {
@@ -71,25 +72,10 @@ const Demo: React.FC = () => {
       <div className="max-w-[350px] font-thin flex flex-col items-center ">
         <span className="font-bold mb-[8px] leading-5 ">
           {" "}
-          Create Simli App is a starter repo for creating visual avatars with
-          Simli{" "}
+          Ez egy Simli avatár, melyet az Open AI Whisper API-ja lát el hangfelismeréssel.{" "}
         </span>
-        <ul className="list-decimal list-inside max-w-[350px] ml-[6px] mt-2">
-          <li className="mb-1">
-            Fill in your OpenAI and Simli API keys in .env file.
-          </li>
-          <li className="mb-1">
-            Test out the interaction and have a talk with the OpenAI-powered,
-            Simli-visualized avatar.
-          </li>
-          <li className="mb-1">
-            You can replace the avatar's face and prompt with your own. Do this
-            by editing <code>app/page.tsx</code>.
-          </li>
-        </ul>
         <span className=" mt-[16px]">
-          You can now deploy this app to Vercel, or incorporate it as part of
-          your existing project.
+          Egy kicsit döcög a hangfelismerés, de ha szépen beszélsz, megérti.
         </span>
       </div>
     </div>

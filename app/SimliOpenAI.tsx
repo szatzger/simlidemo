@@ -82,7 +82,7 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
       });
 
       await openAIClientRef.current.updateSession({
-        instructions: initialPrompt,
+        instructions: initialPrompt + " A felhasználó magyarul fog beszélni hozzád, és te is magyarul válaszolj.",
         voice: openai_voice,
         turn_detection: { type: "server_vad" },
         input_audio_transcription: { model: "whisper-1" },
@@ -108,6 +108,7 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
       
       await openAIClientRef.current.connect().then(() => {
         console.log("OpenAI Client connected successfully");
+        // Az első üzenet magyarul lesz a prompt miatt
         openAIClientRef.current?.createResponse();
         startRecording();
       });
@@ -136,6 +137,7 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
         }
       }
     } else if (item.type === "message" && item.role === "user") {
+      console.log("Felismert szöveg:", item.content[0].transcript);
       setUserMessage(item.content[0].transcript);
     }
   }, []);

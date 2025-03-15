@@ -17,7 +17,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${abcReproMono.variable} ${abcRepro.variable}`}>
+    <html lang="hu" className={`${abcReproMono.variable} ${abcRepro.variable}`}>
       <body className={inter.className}>{children}</body>
     </html>
   );
