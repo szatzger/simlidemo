@@ -419,50 +419,49 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
   };
 
   return (
-    <>
-      <div
-        className={`transition-all duration-300 ${
-          showDottedFace ? "h-0 overflow-hidden" : "h-auto"
-        }`}
-      >
-        <VideoBox video={videoRef} audio={audioRef} />
-      </div>
-      <div className="flex flex-col items-center">
-        {!isAvatarVisible ? (
-          <button
-            onClick={handleStart}
-            disabled={isLoading}
-            className={cn(
-              "w-full h-[52px] mt-4 disabled:bg-[#343434] disabled:text-white disabled:hover:rounded-[100px] bg-simliblue text-white py-3 px-6 rounded-[100px] transition-all duration-300 hover:text-black hover:bg-white hover:rounded-sm",
-              "flex justify-center items-center"
-            )}
-          >
-            {isLoading ? (
-              <IconSparkleLoader className="h-[20px] animate-loader" />
-            ) : (
-              <span className="font-abc-repro-mono font-bold w-[164px]">
-                Test Interaction
-              </span>
-            )}
-          </button>
-        ) : (
-          <>
-            <div className="flex items-center gap-4 w-full">
-              <button
-                onClick={handleStop}
-                className={cn(
-                  "mt-4 group text-white flex-grow bg-red hover:rounded-sm hover:bg-white h-[52px] px-6 rounded-[100px] transition-all duration-300"
-                )}
-              >
-                <span className="font-abc-repro-mono group-hover:text-black font-bold w-[164px] transition-all duration-300">
-                  Stop Interaction
-                </span>
-              </button>
+    <div
+      className={cn(
+        "fixed inset-0 z-50 flex items-center justify-center bg-black/80 transition-all duration-300",
+        {
+          "opacity-0 pointer-events-none": !isAvatarVisible,
+          "opacity-100": isAvatarVisible,
+        }
+      )}
+    >
+      <div className="relative w-full max-w-3xl mx-auto">
+        <button
+          onClick={() => {
+            setIsAvatarVisible(false);
+            onClose();
+          }}
+          className="absolute top-4 right-4 text-white hover:text-gray-300"
+        >
+          <IconExit className="w-6 h-6" />
+        </button>
+
+        <div className="bg-zinc-900 rounded-lg overflow-hidden">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-[600px]">
+              <IconSparkleLoader className="w-12 h-12 text-white animate-spin" />
+              <p className="mt-4 text-white">Loading avatar...</p>
             </div>
-          </>
-        )}
+          ) : (
+            <>
+              <VideoBox
+                videoRef={videoRef}
+                audioRef={audioRef}
+                showDottedFace={showDottedFace}
+              />
+              {/* Felhasználó felismert szövegének megjelenítése */}
+              <div className="p-4 bg-zinc-800 text-white text-center">
+                <p className="text-sm text-gray-400 mb-1">Felismert szöveg:</p>
+                <p className="font-medium">{userMessage}</p>
+              </div>
+            </>
+          )}
+        </div>
       </div>
-    </>
+    </div>
   );
 };
 
