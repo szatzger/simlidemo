@@ -130,7 +130,6 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
     if (item.type === "message" && item.role === "assistant") {
       console.log("Assistant message detected");
       if (delta && delta.audio) {
-        // Visszaállítjuk az átmintavételezést a kimeneti hanghoz
         const downsampledAudio = downsampleAudio(delta.audio, 24000, 16000);
         audioChunkQueueRef.current.push(downsampledAudio);
         if (!isProcessingChunkRef.current) {
@@ -188,24 +187,116 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
   }, []);
 
   /**
+   * Applies a simple low-pass filter to prevent aliasing of audio
+   */
+  const applyLowPassFilter = (
+    data: Int16Array,
+    cutoffFreq: number,
+    sampleRate: number
+  ): Int16Array => {
+    // Simple FIR filter coefficients
+    const numberOfTaps = 31; // Should be odd
+    const coefficients = new Float32Array(numberOfTaps);
+    const fc = cutoffFreq / sampleRate;
+    const middle = (numberOfTaps - 1) / 2;
+
+    // Generate windowed sinc filter
+    for (let i = 0; i < numberOfTaps; i++) {
+      if (i === middle) {
+        coefficients[i] = 2 * Math.PI * fc;
+      } else {
+        const x = 2 * Math.PI * fc * (i - middle);
+        coefficients[i] = Math.sin(x) / (i - middle);
+      }
+      // Apply Hamming window
+      coefficients[i] *=
+        0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (numberOfTaps - 1));
+    }
+
+    // Normalize coefficients
+    const sum = coefficients.reduce((acc, val) => acc + val, 0);
+    coefficients.forEach((_, i) => (coefficients[i] /= sum));
+
+    // Apply filter
+    const result = new Int16Array(data.length);
+    for (let i = 0; i < data.length; i++) {
+      let sum = 0;
+      for (let j = 0; j < numberOfTaps; j++) {
+        const idx = i - j + middle;
+        if (idx >= 0 && idx < data.length) {
+          sum += coefficients[j] * data[idx];
+        }
+      }
+      result[i] = Math.round(sum);
+    }
+
+    return result;
+  };
+
+  /**
+   * Downsamples audio data from one sample rate to another using linear interpolation
+   * and anti-aliasing filter.
+   *
+   * @param audioData - Input audio data as Int16Array
+   * @param inputSampleRate - Original sampling rate in Hz
+   * @param outputSampleRate - Target sampling rate in Hz
+   * @returns Downsampled audio data as Int16Array
+   */
+  const downsampleAudio = (
+    audioData: Int16Array,
+    inputSampleRate: number,
+    outputSampleRate: number
+  ): Int16Array => {
+    if (inputSampleRate === outputSampleRate) {
+      return audioData;
+    }
+
+    if (inputSampleRate < outputSampleRate) {
+      throw new Error("Upsampling is not supported");
+    }
+
+    // Apply low-pass filter to prevent aliasing
+    // Cut off at slightly less than the Nyquist frequency of the target sample rate
+    const filteredData = applyLowPassFilter(
+      audioData,
+      outputSampleRate * 0.45, // Slight margin below Nyquist frequency
+      inputSampleRate
+    );
+
+    const ratio = inputSampleRate / outputSampleRate;
+    const newLength = Math.floor(audioData.length / ratio);
+    const result = new Int16Array(newLength);
+
+    // Linear interpolation
+    for (let i = 0; i < newLength; i++) {
+      const position = i * ratio;
+      const index = Math.floor(position);
+      const fraction = position - index;
+
+      if (index + 1 < filteredData.length) {
+        const a = filteredData[index];
+        const b = filteredData[index + 1];
+        result[i] = Math.round(a + fraction * (b - a));
+      } else {
+        result[i] = filteredData[index];
+      }
+    }
+
+    return result;
+  };
+
+  /**
    * Starts audio recording from the user's microphone.
    */
   const startRecording = useCallback(async () => {
     if (!audioContextRef.current) {
-      // Visszaállítjuk az eredeti 24000 Hz-es mintavételezést
-      audioContextRef.current = new AudioContext({ sampleRate: 24000 });
+      audioContextRef.current = new AudioContext({ sampleRate: 16000 });
     }
 
     try {
       console.log("Starting audio recording...");
       streamRef.current = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          // Csak a bemeneti hanghoz használunk 16000 Hz-et és zajszűrést
-          sampleRate: 16000,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
+        audio: true,
       });
       const source = audioContextRef.current.createMediaStreamSource(
         streamRef.current
@@ -319,149 +410,51 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
     }
   }, []);
 
-  /**
-   * Applies a simple low-pass filter to prevent aliasing of audio
-   */
-  const applyLowPassFilter = (
-    data: Int16Array,
-    cutoffFreq: number,
-    sampleRate: number
-  ): Int16Array => {
-    // Simple FIR filter coefficients
-    const numberOfTaps = 31; // Should be odd
-    const coefficients = new Float32Array(numberOfTaps);
-    const fc = cutoffFreq / sampleRate;
-    const middle = (numberOfTaps - 1) / 2;
-
-    // Generate windowed sinc filter
-    for (let i = 0; i < numberOfTaps; i++) {
-      if (i === middle) {
-        coefficients[i] = 2 * Math.PI * fc;
-      } else {
-        const x = 2 * Math.PI * fc * (i - middle);
-        coefficients[i] = Math.sin(x) / (i - middle);
-      }
-      // Apply Hamming window
-      coefficients[i] *=
-        0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (numberOfTaps - 1));
-    }
-
-    // Normalize coefficients
-    const sum = coefficients.reduce((acc, val) => acc + val, 0);
-    coefficients.forEach((_, i) => (coefficients[i] /= sum));
-
-    // Apply filter
-    const result = new Int16Array(data.length);
-    for (let i = 0; i < data.length; i++) {
-      let sum = 0;
-      for (let j = 0; j < numberOfTaps; j++) {
-        const idx = i - j + middle;
-        if (idx >= 0 && idx < data.length) {
-          sum += coefficients[j] * data[idx];
-        }
-      }
-      result[i] = Math.round(sum);
-    }
-
-    return result;
-  };
-
-  /**
-   * Downsamples audio data from one sample rate to another using linear interpolation
-   * and anti-aliasing filter.
-   *
-   * @param audioData - Input audio data as Int16Array
-   * @param inputSampleRate - Original sampling rate in Hz
-   * @param outputSampleRate - Target sampling rate in Hz
-   * @returns Downsampled audio data as Int16Array
-   */
-  const downsampleAudio = (
-    audioData: Int16Array,
-    inputSampleRate: number,
-    outputSampleRate: number
-  ): Int16Array => {
-    if (inputSampleRate === outputSampleRate) {
-      return audioData;
-    }
-
-    if (inputSampleRate < outputSampleRate) {
-      throw new Error("Upsampling is not supported");
-    }
-
-    // Apply low-pass filter to prevent aliasing
-    // Cut off at slightly less than the Nyquist frequency of the target sample rate
-    const filteredData = applyLowPassFilter(
-      audioData,
-      outputSampleRate * 0.45, // Slight margin below Nyquist frequency
-      inputSampleRate
-    );
-
-    const ratio = inputSampleRate / outputSampleRate;
-    const newLength = Math.floor(audioData.length / ratio);
-    const result = new Int16Array(newLength);
-
-    // Linear interpolation
-    for (let i = 0; i < newLength; i++) {
-      const position = i * ratio;
-      const index = Math.floor(position);
-      const fraction = position - index;
-
-      if (index + 1 < filteredData.length) {
-        const a = filteredData[index];
-        const b = filteredData[index + 1];
-        result[i] = Math.round(a + fraction * (b - a));
-      } else {
-        result[i] = filteredData[index];
-      }
-    }
-
-    return result;
-  };
-
   return (
-    <div
-      className={cn(
-        "fixed inset-0 z-50 flex items-center justify-center bg-black/80 transition-all duration-300",
-        {
-          "opacity-0 pointer-events-none": !isAvatarVisible,
-          "opacity-100": isAvatarVisible,
-        }
-      )}
-    >
-      <div className="relative w-full max-w-3xl mx-auto">
-        <button
-          onClick={() => {
-            setIsAvatarVisible(false);
-            onClose();
-          }}
-          className="absolute top-4 right-4 text-white hover:text-gray-300"
-        >
-          <IconExit className="w-6 h-6" />
-        </button>
-
-        <div className="bg-zinc-900 rounded-lg overflow-hidden">
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-[600px]">
-              <IconSparkleLoader className="w-12 h-12 text-white animate-spin" />
-              <p className="mt-4 text-white">Loading avatar...</p>
-            </div>
-          ) : (
-            <>
-              <VideoBox
-                videoRef={videoRef}
-                audioRef={audioRef}
-                showDottedFace={showDottedFace}
-              />
-              {/* Felhasználó felismert szövegének megjelenítése */}
-              <div className="p-4 bg-zinc-800 text-white text-center">
-                <p className="text-sm text-gray-400 mb-1">Felismert szöveg:</p>
-                <p className="font-medium">{userMessage}</p>
-              </div>
-            </>
-          )}
-        </div>
+    <>
+      <div
+        className={`transition-all duration-300 ${
+          showDottedFace ? "h-0 overflow-hidden" : "h-auto"
+        }`}
+      >
+        <VideoBox video={videoRef} audio={audioRef} />
       </div>
-    </div>
+      <div className="flex flex-col items-center">
+        {!isAvatarVisible ? (
+          <button
+            onClick={handleStart}
+            disabled={isLoading}
+            className={cn(
+              "w-full h-[52px] mt-4 disabled:bg-[#343434] disabled:text-white disabled:hover:rounded-[100px] bg-simliblue text-white py-3 px-6 rounded-[100px] transition-all duration-300 hover:text-black hover:bg-white hover:rounded-sm",
+              "flex justify-center items-center"
+            )}
+          >
+            {isLoading ? (
+              <IconSparkleLoader className="h-[20px] animate-loader" />
+            ) : (
+              <span className="font-abc-repro-mono font-bold w-[164px]">
+                Test Interaction
+              </span>
+            )}
+          </button>
+        ) : (
+          <>
+            <div className="flex items-center gap-4 w-full">
+              <button
+                onClick={handleStop}
+                className={cn(
+                  "mt-4 group text-white flex-grow bg-red hover:rounded-sm hover:bg-white h-[52px] px-6 rounded-[100px] transition-all duration-300"
+                )}
+              >
+                <span className="font-abc-repro-mono group-hover:text-black font-bold w-[164px] transition-all duration-300">
+                  Stop Interaction
+                </span>
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 };
 
