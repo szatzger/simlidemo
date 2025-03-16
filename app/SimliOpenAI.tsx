@@ -85,7 +85,7 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
         instructions: initialPrompt + " A felhasználó magyarul fog beszélni hozzád, és te is magyarul válaszolj.",
         voice: openai_voice,
         turn_detection: { type: "server_vad" },
-        input_audio_transcription: { model: "whisper-1" },
+        input_audio_transcription: { model: "whisper-1", language: "hu" },
       });
 
       // Set up event listeners
