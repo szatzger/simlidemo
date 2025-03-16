@@ -1,6 +1,7 @@
 "use client";
 import React, { use, useEffect, useState } from "react";
 import SimliOpenAI from "./SimliOpenAI";
+import SimliAgent from "./SimliAgent";
 import DottedFace from "./Components/DottedFace";
 import SimliHeaderLogo from "./Components/Logo";
 import Navbar from "./Components/Navbar";
@@ -28,6 +29,7 @@ const avatar: avatarSettings = {
 
 const Demo: React.FC = () => {
   const [showDottedFace, setShowDottedFace] = useState(true);
+  const [modelType, setModelType] = useState<"openai" | "simli">("openai");
 
   const onStart = () => {
     console.log("Setting setshowDottedface to false...");
@@ -54,28 +56,59 @@ const Demo: React.FC = () => {
           create-simli-app (OpenAI)
         </text>
       </div>
+      
+      {/* Model váltókapcsoló */}
+      <div className="flex items-center justify-center mb-4 bg-[#1a1a1a] p-2 rounded-lg">
+        <button 
+          className={`px-4 py-2 rounded-md transition-all ${modelType === "openai" ? "bg-simliblue text-white" : "bg-transparent text-gray-400 hover:text-white"}`}
+          onClick={() => setModelType("openai")}
+        >
+          OpenAI Realtime
+        </button>
+        <button 
+          className={`px-4 py-2 rounded-md transition-all ${modelType === "simli" ? "bg-simliblue text-white" : "bg-transparent text-gray-400 hover:text-white"}`}
+          onClick={() => setModelType("simli")}
+        >
+          Simli
+        </button>
+      </div>
+      
       <div className="flex flex-col items-center gap-6 bg-effect15White p-6 pb-[40px] rounded-xl w-full">
         <div>
           {showDottedFace && <DottedFace />}
-          <SimliOpenAI
-            openai_voice={avatar.openai_voice}
-            openai_model={avatar.openai_model}
-            simli_faceid={avatar.simli_faceid}
-            initialPrompt={avatar.initialPrompt}
-            onStart={onStart}
-            onClose={onClose}
-            showDottedFace={showDottedFace}
-          />
+          {modelType === "openai" ? (
+            <SimliOpenAI
+              openai_voice={avatar.openai_voice}
+              openai_model={avatar.openai_model}
+              simli_faceid={avatar.simli_faceid}
+              initialPrompt={avatar.initialPrompt}
+              onStart={onStart}
+              onClose={onClose}
+              showDottedFace={showDottedFace}
+            />
+          ) : (
+            <SimliAgent
+              simli_faceid={avatar.simli_faceid}
+              initialPrompt={avatar.initialPrompt}
+              onStart={onStart}
+              onClose={onClose}
+              showDottedFace={showDottedFace}
+            />
+          )}
         </div>
       </div>
 
       <div className="max-w-[350px] font-thin flex flex-col items-center ">
         <span className="font-bold mb-[8px] leading-5 ">
           {" "}
-          Ez egy Simli avatár, melyet az Open AI Whisper API-ja lát el hangfelismeréssel.{" "}
+          {modelType === "openai" 
+            ? "Ez egy Simli avatár, melyet az Open AI Whisper API-ja lát el hangfelismeréssel." 
+            : "Ez egy Simli avatár, mely a Simli Agent API-t használja."}
         </span>
         <span className=" mt-[16px]">
-          Egy kicsit döcög a hangfelismerés, de ha szépen beszélsz, megérti.
+          {modelType === "openai" 
+            ? "Egy kicsit döcög a hangfelismerés, de ha szépen beszélsz, megérti."
+            : "A Simli Agent egy teljes körű megoldást kínál avatárok létrehozására és kezelésére."}
         </span>
       </div>
     </div>

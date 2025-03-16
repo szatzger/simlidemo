@@ -17,7 +17,8 @@ interface SimliOpenAIProps {
   showDottedFace: boolean;
 }
 
-const simliClient = new SimliClient();
+// Globális változó a SimliClient számára, hogy ne inicializáljuk újra
+let simliClientInstance: any = null;
 
 const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
   simli_faceid,
@@ -43,6 +44,7 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
   const streamRef = useRef<MediaStream | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const isFirstRun = useRef(true);
+  const hasInitialized = useRef(false);
 
   // New refs for managing audio chunk delay
   const audioChunkQueueRef = useRef<Int16Array[]>([]);
@@ -52,7 +54,18 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
    * Initializes the Simli client with the provided configuration.
    */
   const initializeSimliClient = useCallback(() => {
+    // Ha már inicializáltuk, ne tegyük újra
+    if (hasInitialized.current) {
+      console.log("Simli Client already initialized, skipping...");
+      return;
+    }
+    
     if (videoRef.current && audioRef.current) {
+      // Ha még nincs globális instance, hozzuk létre
+      if (!simliClientInstance) {
+        simliClientInstance = new SimliClient();
+      }
+      
       const SimliConfig = {
         apiKey: process.env.NEXT_PUBLIC_SIMLI_API_KEY,
         faceID: simli_faceid,
@@ -64,8 +77,9 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
         enableConsoleLogs: true,
       };
 
-      simliClient.Initialize(SimliConfig as any);
+      simliClientInstance.Initialize(SimliConfig as any);
       console.log("Simli Client initialized");
+      hasInitialized.current = true;
     }
   }, [simli_faceid]);
 
@@ -73,6 +87,12 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
    * Initializes the OpenAI client, sets up event listeners, and connects to the API.
    */
   const initializeOpenAIClient = useCallback(async () => {
+    // Ha már inicializáltuk, ne tegyük újra
+    if (openAIClientRef.current) {
+      console.log("OpenAI Client already initialized, skipping...");
+      return;
+    }
+    
     try {
       console.log("Initializing OpenAI client...");
       openAIClientRef.current = new RealtimeClient({
@@ -136,7 +156,7 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
           processNextAudioChunk();
         }
       }
-    } else if (item.type === "message" && item.role === "user") {
+    } else if (item.type === "message" && item.role === "user" && item.content && item.content[0] && item.content[0].transcript) {
       console.log("Felismert szöveg:", item.content[0].transcript);
       setUserMessage(item.content[0].transcript);
     }
@@ -147,7 +167,7 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
    */
   const interruptConversation = () => {
     console.warn("User interrupted the conversation");
-    simliClient?.ClearBuffer();
+    simliClientInstance?.ClearBuffer();
     openAIClientRef.current?.cancelResponse("");
   };
 
@@ -165,7 +185,7 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
         const chunkDurationMs = (audioChunk.length / 16000) * 1000; // Calculate chunk duration in milliseconds
 
         // Send audio chunks to Simli immediately
-        simliClient?.sendAudioData(audioChunk as any);
+        simliClientInstance?.sendAudioData(audioChunk as any);
         console.log(
           "Sent audio chunk to Simli:",
           chunkDurationMs,
@@ -358,7 +378,7 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
     try {
       console.log("Starting...");
       initializeSimliClient();
-      await simliClient?.start();
+      await simliClientInstance?.start();
       eventListenerSimli();
     } catch (error: any) {
       console.error("Error starting interaction:", error);
@@ -378,7 +398,7 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
     setError("");
     stopRecording();
     setIsAvatarVisible(false);
-    simliClient?.close();
+    simliClientInstance?.close();
     openAIClientRef.current?.disconnect();
     if (audioContextRef.current) {
       audioContextRef.current?.close();
@@ -387,20 +407,36 @@ const SimliOpenAI: React.FC<SimliOpenAIProps> = ({
     stopRecording();
     onClose();
     console.log("Interaction stopped");
+    
+    // Reset initialization flags
+    hasInitialized.current = false;
+    openAIClientRef.current = null;
   }, [stopRecording]);
 
   /**
    * Simli Event listeners
    */
   const eventListenerSimli = useCallback(() => {
-    if (simliClient) {
-      simliClient?.on("connected", () => {
+    if (simliClientInstance) {
+      // Csak egyszer adjuk hozzá az eseménykezelőket
+      const alreadyHasListeners = simliClientInstance._events && 
+                                 (simliClientInstance._events.connected || 
+                                  simliClientInstance._events.disconnected);
+      
+      if (alreadyHasListeners) {
+        console.log("Simli event listeners already added, skipping...");
+        // Ha már vannak eseménykezelők, akkor közvetlenül inicializáljuk az OpenAI klienst
+        initializeOpenAIClient();
+        return;
+      }
+      
+      simliClientInstance?.on("connected", () => {
         console.log("SimliClient connected");
         // Initialize OpenAI client
         initializeOpenAIClient();
       });
 
-      simliClient?.on("disconnected", () => {
+      simliClientInstance?.on("disconnected", () => {
         console.log("SimliClient disconnected");
         openAIClientRef.current?.disconnect();
         if (audioContextRef.current) {

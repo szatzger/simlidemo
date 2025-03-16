@@ -9,6 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@daily-co/daily-js": "^0.76.0",
+    "@daily-co/daily-react": "^0.22.0",
     "@deepgram/sdk": "^3.5.1",
     "@openai/realtime-api-beta": "github:simliai/openai-realtime-api-beta",
     "axios": "^1.7.5",
